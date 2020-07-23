@@ -127,5 +127,53 @@ summary(diff(resamples(list(GBM=gbmFit,svm=svmFit)))) ## large pvalue indicates 
 summary(diff(resamples(list(GBM=gbmFit,KNN=knnFit)))) ## not significant different
 summary(diff(resamples(list(SVM=svmFit,KNN=knnFit))))## SVM and KNN are not significantly different 
 summary(diff(resamples(list(SVM=gbmFit,QDA=qdaFit))))
-plot(cancer$diagnosis, cancer$radius_mean)
+
+##  create a function that compares the performance of different models 
+## function that to round values in a list if it is numeric 
+round_num<- function(list){
+  lapply(list, function(x){
+    if(is.numeric(x)){
+      x=round(x, 2) # round to 2 D.P
+    }
+    
+  })
+}
+
+##  create a function that compares results of the models 
+
+comp_summ<- function(cm, fit){
+  summ<- list(TN= cm$table[1,1], #  True Negative
+              TP= cm$table[2,2], #  True Positive
+              FN= cm$table[1,2], #  False Negative
+              FP= cm$table[2,1], #  False Positive
+              Acc=cm$overall["Accuracy"], # Accuracy
+              Sens=cm$byClass["Sensitivity"], # Sensitivity
+              Spec=cm$byClass["Specificity"], # Specificity
+              Prec=cm$byClass["Precision"], # Precision
+              Recall= cm$byClass["Recall"], # Recall
+              F1_Score=cm$byClass["F1"], #  F1 score
+              PPV= cm$byClass["Pos Pred Value"], #  Positive predictive value
+              NPV= cm$byClass["Neg Pred Value"] # Negative predictive value
+  )
+  round_num(summ) # rounds to 2 D.P
+}
+
+##  create a dataframe that stores the performance of the models
+
+model_performance<- data.frame(rbind(comp_summ(cmatLog,logFit),
+                                         comp_summ(cmatLda,ldaFit),
+                                         comp_summ(cmatQda,qdaFit),
+                                         comp_summ(cmatKnn,knnFit),
+                                         comp_summ(cmatRpart,rpartFit),
+                                         comp_summ(cmatSvm,svmFit),
+                                         comp_summ(cmatRf,rfFit),
+                                         comp_summ(cmatGbm,gbmFit)))
+##  create names for rows in model performanc
+rownames(model_performance)<- c("LogisticReg","LDA","QDA","KNN","RpartTree","SVM","RandomForest", "GBM")
+model_performance##  SVM has the highest Accuracy, Sensitivity, Positive prred value and F1 Score.
+
+##  a sensitivity of .98 means 98% of Malignant cancer were correctly classified. Given the benefit of correctly detecting
+##  malignant cancer, this model is doing good.
+
+
 
