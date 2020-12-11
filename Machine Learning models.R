@@ -1,12 +1,12 @@
-library(tidyverse);library(caret)
-cancer<- read.csv(file.choose(), stringsAsFactors = F)
+library(tidyverse);library(caret) # Import Libraries
+cancer<- read.csv(file.choose(), stringsAsFactors = F) # Load data
 str(cancer) # shows structure of cancer data 
 summary(cancer)# summary statistics of variables in cancer dataset
-names(cancer)
-## remove id column
+names(cancer) # Column names
+## remove id column as not needed for modelling
 cancer<- cancer[-1]
-cancer$diagnosis
-##  convert diagnosis to factors 
+cancer$diagnosis # outcome variable
+##  convert diagnosis variables to factors 
 cancer$diagnosis<-factor(cancer$diagnosis, levels = c("B", "M"),
                          labels = c("Benign","Malignat"))
 table(cancer$diagnosis) %>% prop.table() # 63% is benign and 37% malignant 
