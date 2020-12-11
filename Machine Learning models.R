@@ -1,4 +1,4 @@
-library(tidyverse);library(caret) # Import Libraries
+library(tidyverse);library(caret); library(ggcorrplot) # Import Libraries
 cancer<- read.csv(file.choose(), stringsAsFactors = F) # Load data
 str(cancer) # shows structure of cancer data 
 summary(cancer)# summary statistics of variables in cancer dataset
@@ -11,13 +11,18 @@ cancer$diagnosis<-factor(cancer$diagnosis, levels = c("B", "M"),
                          labels = c("Benign","Malignat"))
 table(cancer$diagnosis) %>% prop.table() # 63% is benign and 37% malignant 
 
-## splits cancer into train and test dataset
-set.seed(100) ## ensures reproducibilit
+## Given that all predictors are numerical variables, plot a scatterplot mix to show correlations among the predictors
+correaltions<- round(cor(cancer[-1]),1) # correations between predictors-
+ggcorrplot(correaltions, lab = T, hc.order = T) # view correlations between predictors. Some of the variables are highly correlated with each other, 
+# feature engineering by removing highly correlated variables might improve model performance and reduce number of features used
+
+## splits cancer into train and test dataset using Caret Package
+set.seed(100) ## ensures reproducibility
 
 trainindex<- createDataPartition(cancer$diagnosis, p=0.75, list = F)
 train_cancer<- cancer[trainindex,]
 test_cancer<- cancer[-trainindex,]
-## compare frequencies of diagnosis in test and train data set against the original canceer dataset
+## compare frequencies of diagnosis in test and train data set against the original cancer dataset to ensure similar data composition
 train_prop<-round(prop.table(table(train_cancer$diagnosis))*100,1)
 test_prop<- round(prop.table(table(test_cancer$diagnosis))*100,1)
 original_prop<- round(prop.table(table(cancer$diagnosis))*100,1) 
@@ -25,10 +30,13 @@ freq<- data.frame(cbind(original_prop,train_prop,test_prop))
 colnames(freq)<- c("Original","Training", "Testing")
 freq ## the frequencies are approximately similar
 
-##  parameter tuning 
+##  parameter tuning- Cross validation to be used for the models- helps to reduce overfitting
 
-fitCtrl<- trainControl(method = "repeatedcv", number = 10, repeats = 3)## repeated k_fold CV
-## fit knn classification using caret
+fitCtrl<- trainControl(method = "repeatedcv", number = 10, repeats = 3)## repeated k_fold Cross validation
+
+## Model Fitting using caret package
+
+## fit KNN classification 
 set.seed(100)
 knnFit<- train(diagnosis~.,data = train_cancer, method="knn", trControl=fitCtrl, tuneLength=20, 
                preProcess=c("center","scale"), metric="Accuracy")
@@ -42,9 +50,9 @@ knnFit %>% ggplot()+
 ##  evaluate model perfomance using test data
 knnPredict<- predict(knnFit, test_cancer)
 cmatKnn<- confusionMatrix(knnPredict, test_cancer$diagnosis, positive = "Malignat")
-cmatKnn # Accuracy rate of 96%
+cmatKnn # Accuracy rate of 96%, similar to accuracy obtained in training data
 
-##  predicing cancer diagnosis using Logistic Regression
+##  predicting cancer diagnosis using Logistic Regression
 set.seed(100)
 logFit<- train(diagnosis~., data = train_cancer, method="glm", family="binomial", metric="Accuracy", tuneLength=20,
                trControl=fitCtrl)
@@ -52,18 +60,18 @@ logPredict<- predict(logFit, test_cancer)
 cmatLog<- confusionMatrix(logPredict, test_cancer$diagnosis, positive = "Malignat")
 cmatLog ## Accuracy of 94%
 
-##  Prediciting cancer diagnosis using decision tree
+##  Prediciting cancer diagnosis using Rpart decision tree
 set.seed(100)
 rpartFit<- train(diagnosis~., data = train_cancer, method="rpart",  metric="Accuracy",
                  trControl=fitCtrl, tuneLength=20)
 plot(rpartFit)
-## plot thr tree
+## plot the tree
 rpart.plot::rpart.plot(rpartFit$finalModel)
 rpartPredict<- predict(rpartFit, test_cancer)
 cmatRpart<- confusionMatrix(rpartPredict, test_cancer$diagnosis, positive = "Malignat")
 cmatRpart ## Accuracy of 91%
 
-##  predicting using lda
+##  predicting using lInear Discrimination Analysis
 set.seed(100)
 ldaFit<- train(diagnosis~., data = train_cancer, method="lda", metric="Accuracy", trControl=fitCtrl,tuneLength=20)
 ldaFit
@@ -71,12 +79,14 @@ ldaPredict<- predict(ldaFit, test_cancer)
 cmatLda<- confusionMatrix(ldaPredict, test_cancer$diagnosis, positive = "Malignat")
 cmatLda ## Accuracy of 94%
 
-##  predictinc cancer diagnoisi using QDA
+##  Predictiing cancer diagnosis using Quadratic Discrimination Analysis
 qdaFit<- train(diagnosis~., data = train_cancer, method="qda", trControl=fitCtrl, metric="Accuracy", tuneLength=20)
 qdaFit
 qdaPredict<- predict(qdaFit, test_cancer)
 cmatQda<- confusionMatrix(qdaPredict, test_cancer$diagnosis, positive = "Malignat")
 cmatQda ##  Accuracy of 96%
+
+## Ensemble Classification Models
 
 ##  Predicting Cancer diagnosis using Randomforest 
 set.seed(100)
@@ -84,7 +94,7 @@ rfFit<- train(diagnosis~., data = train_cancer, method="rf", metric="Accuracy",
               trControl=fitCtrl, tuneLength=20, importance=TRUE)
 rfFit$finalModel %>% randomForest::importance()
 varImp(rfFit) ##  shows the importance of the predictors in explaining the model 
-varImp(rfFit) %>% ggplot()+geom_col(fill="red") ## visualize importance of predictors
+varImp(rfFit) %>% ggplot()+geom_col(fill="red") ## visualize importance of the predictors in explaining the outcome variable
 varImp(rfFit) %>% plot(col="red")
 rfFit %>% ggplot()+
   scale_x_continuous(breaks = c(1:30)) # mtry = 2 has the highest accuracy 
@@ -92,9 +102,9 @@ rfPredict<- predict(rfFit, test_cancer)
 cmatRf<- confusionMatrix(rfPredict, test_cancer$diagnosis, positive = "Malignat")
 cmatRf ## Accuracy of 95%
 
-##  predicting using boosting 
+##  predicting using Gradient Boosting Model 
 gbmGrid<- expand.grid(.interaction.depth = (1:5) * 2,.n.trees = (1:10)*25, .shrinkage = c(0.01,0.05,0.1,0.5),
-                      .n.minobsinnode=10,)
+                      .n.minobsinnode=10,) # Tune parameters
 set.seed(100)
 gbmFit<- train(diagnosis~., data = train_cancer, method="gbm", metric="Accuracy", 
                trControl=fitCtrl, tuneGrid=gbmGrid, verbose=FALSE, distribution="bernoulli",tuneLength=20)
@@ -173,7 +183,9 @@ rownames(model_performance)<- c("LogisticReg","LDA","QDA","KNN","RpartTree","SVM
 model_performance##  SVM has the highest Accuracy, Sensitivity, Positive prred value and F1 Score.
 
 ##  a sensitivity of .98 means 98% of Malignant cancer were correctly classified. Given the benefit of correctly detecting
-##  malignant cancer, this model is doing good.
+##  malignant cancer, this model is doing good. 
+
+## Next project: check to see if feature engineering can improve the perfomance
 
 
 
